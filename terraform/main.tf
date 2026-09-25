@@ -1,13 +1,3 @@
-terraform {
-  required_version = ">= 1.5.0"
-  required_providers {
-    motherduck = {
-      source  = "motherduckdb/motherduck"
-      version = "~> 0.2.3"
-    }
-  }
-}
-
 provider "motherduck" {
   token = sensitive(var.motherduck_token)
 }
@@ -22,29 +12,50 @@ locals {
   }
 }
 
-variable "environment" {
-  description = "Environment name (dev, staging, prod)"
-  type        = string
-  default     = "dev"
-}
-
-variable "motherduck_token" {
-  description = "MotherDuck API token (reads from MOTHERDUCK_TOKEN env var if not provided)"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
+# MotherDuck Analytics Database
 resource "motherduck_database" "f1_analytics" {
-  name                    = "${local.project_name}_${local.environment}"
+  name = "${local.project_name}_${local.environment}"
 }
 
-output "database_name" {
-  description = "MotherDuck database name"
-  value       = motherduck_database.f1_analytics.name
+# Raw Layer Schema - Source of truth from API ingestion
+resource "motherduck_schema" "raw" {
+  database = motherduck_database.f1_analytics.name
+  name     = "raw"
+
+  depends_on = [motherduck_database.f1_analytics]
 }
 
-output "database_id" {
-  description = "MotherDuck database ID"
-  value       = motherduck_database.f1_analytics.id
+# Staging Layer Schema - Cleaned and normalized data
+resource "motherduck_schema" "staging" {
+  database = motherduck_database.f1_analytics.name
+  name     = "staging"
+
+  depends_on = [motherduck_database.f1_analytics]
 }
+
+# Mart Layer Schema - Analytics-ready fact and dimension tables
+resource "motherduck_schema" "marts" {
+  database = motherduck_database.f1_analytics.name
+  name     = "marts"
+
+  depends_on = [motherduck_database.f1_analytics]
+}
+
+# Mart Layer Subschemas for organization (to be uncommented later)
+# resource "motherduck_schema" "marts_facts" {
+#   database = motherduck_database.f1_analytics.name
+#   name     = "marts_facts"
+#   depends_on = [motherduck_database.f1_analytics]
+# }
+
+# resource "motherduck_schema" "marts_dimensions" {
+#   database = motherduck_database.f1_analytics.name
+#   name     = "marts_dimensions"
+#   depends_on = [motherduck_database.f1_analytics]
+# }
+
+# resource "motherduck_schema" "marts_aggregates" {
+#   database = motherduck_database.f1_analytics.name
+#   name     = "marts_aggregates"
+#   depends_on = [motherduck_database.f1_analytics]
+# }
